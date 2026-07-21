@@ -1,17 +1,28 @@
 # Proxy Fraud Score Checker Bot
 
-Telegram-бот для проверки SOCKS5/HTTP прокси на Fraud Score сразу по нескольким лучшим бесплатным сервисам 2026 года:
+Telegram-бот для проверки прокси на Fraud Score сразу по нескольким лучшим бесплатным сервисам 2026 года:
 
 - Scamalytics
 - IPLogs
 - Fraudcache
 - ip-api
 
-## Формат прокси
+## Поддерживаемые форматы прокси (любые)
+
+Бот понимает почти все существующие форматы:
 
 ```
-socks5://логин:пароль@хост:порт
+socks5://user:pass@host:port
+socks5://host:port
+user:pass@host:port
+host:port:user:pass
+host:port
+http://user:pass@host:port
+http://host:port
+https://host:port
 ```
+
+Если протокол не указан — по умолчанию используется `socks5`.
 
 ## Деплой на Railway (из GitHub)
 
@@ -30,15 +41,8 @@ socks5://логин:пароль@хост:порт
 BOT_TOKEN = твой_токен_от_BotFather
 ```
 
-### 4. Настройки деплоя
-Railway обычно сам подхватывает `Procfile`.  
-Если нужно вручную:
-
-- **Start Command**: `python bot.py`
-- Или оставь как есть (Procfile уже содержит `worker: python bot.py`)
-
-### 5. Деплой
-Нажми Deploy. Бот запустится и будет работать 24/7.
+### 4. Деплой
+Railway сам подхватит `Procfile` и запустит бота командой `python bot.py`.
 
 ## Локальный запуск (для теста)
 

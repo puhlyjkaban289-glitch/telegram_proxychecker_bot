@@ -18,17 +18,102 @@ bot = Bot(
 )
 dp = Dispatcher()
 
-PROXY_REGEX = re.compile(
-    r'^(?P<scheme>socks5|socks5h|http|https)://'
-    r'(?:(?P<user>[^:]+):(?P<password>[^@]+)@)?'
-    r'(?P<host>[^:]+):(?P<port>\d+)$',
-    re.IGNORECASE
-)
-
 
 def parse_proxy(proxy_str: str) -> dict | None:
-    match = PROXY_REGEX.match(proxy_str.strip())
-    return match.groupdict() if match else None
+    """
+    Поддерживает почти все существующие форматы прокси:
+
+    1. protocol://user:pass@host:port
+    2. protocol://host:port
+    3. user:pass@host:port
+    4. host:port:user:pass
+    5. host:port
+    6. protocol://user:pass@host:port (с socks5h, http, https и т.д.)
+    """
+    raw = proxy_str.strip()
+    if not raw:
+        return None
+
+    scheme = "socks5"  # дефолт для резидентских
+    user = None
+    password = None
+    host = None
+    port = None
+
+    # === Формат 1: protocol://... ===
+    if "://" in raw:
+        try:
+            scheme_part, rest = raw.split("://", 1)
+            scheme = scheme_part.lower().strip()
+            raw = rest
+        except Exception:
+            return None
+
+    # === Формат 2: user:pass@host:port ===
+    if "@" in raw:
+        try:
+            auth_part, hostport = raw.rsplit("@", 1)
+            if ":" in auth_part:
+                user, password = auth_part.split(":", 1)
+            else:
+                user = auth_part
+            raw = hostport
+        except Exception:
+            return None
+
+    # === Теперь raw = host:port  или  host:port:user:pass ===
+    parts = raw.split(":")
+
+    if len(parts) == 2:
+        # host:port
+        host, port = parts[0], parts[1]
+    elif len(parts) == 4:
+        # host:port:user:pass
+        host, port, user, password = parts
+    elif len(parts) == 3:
+        # иногда бывает host:port:user (без пароля) — редко
+        host, port, user = parts
+    else:
+        return None
+
+    # Валидация
+    if not host or not port:
+        return None
+    try:
+        port_int = int(port)
+        if not (1 <= port_int <= 65535):
+            return None
+    except ValueError:
+        return None
+
+    # Нормализация схемы
+    scheme = scheme.lower()
+    if scheme in ("socks", "socks5h"):
+        scheme = "socks5"
+    if scheme not in ("socks5", "socks4", "http", "https"):
+        # если совсем неизвестная схема — оставляем как есть, httpx попробует
+        pass
+
+    return {
+        "scheme": scheme,
+        "host": host.strip(),
+        "port": str(port_int),
+        "user": user.strip() if user else None,
+        "password": password.strip() if password else None,
+    }
+
+
+def build_proxy_url(data: dict) -> str:
+    """Собирает правильный URL для httpx"""
+    scheme = data["scheme"]
+    host = data["host"]
+    port = data["port"]
+    user = data.get("user")
+    password = data.get("password")
+
+    if user and password:
+        return f"{scheme}://{user}:{password}@{host}:{port}"
+    return f"{scheme}://{host}:{port}"
 
 
 async def get_ip_through_proxy(proxy_url: str) -> str | None:
@@ -139,21 +224,20 @@ async def check_proxy(proxy_str: str) -> str:
     data = parse_proxy(proxy_str)
     if not data:
         return (
-            "❌ Неверный формат прокси.\n\n"
-            "Нужен вид:\n"
-            "<code>socks5://логин:пароль@хост:порт</code>"
+            "❌ Не удалось распознать формат прокси.\n\n"
+            "Поддерживаются почти все форматы:\n"
+            "• <code>socks5://user:pass@host:port</code>\n"
+            "• <code>user:pass@host:port</code>\n"
+            "• <code>host:port:user:pass</code>\n"
+            "• <code>host:port</code>\n"
+            "• <code>http://host:port</code>\n"
+            "и другие"
         )
 
-    scheme = data["scheme"].lower()
+    proxy_url = build_proxy_url(data)
+    scheme = data["scheme"]
     host = data["host"]
     port = data["port"]
-    user = data.get("user")
-    password = data.get("password")
-
-    if user and password:
-        proxy_url = f"{scheme}://{user}:{password}@{host}:{port}"
-    else:
-        proxy_url = f"{scheme}://{host}:{port}"
 
     # Получаем реальный IP через прокси
     ip = await get_ip_through_proxy(proxy_url)
@@ -163,6 +247,7 @@ async def check_proxy(proxy_str: str) -> str:
             "Возможные причины:\n"
             "• Неверный логин/пароль\n"
             "• Прокси оффлайн\n"
+            "• Неправильный тип (socks5/http)\n"
             "• Таймаут соединения"
         )
 
@@ -261,9 +346,13 @@ async def check_proxy(proxy_str: str) -> str:
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     await message.answer(
-        "Пришли прокси в формате:\n"
-        "<code>socks5://логин:пароль@хост:порт</code>\n\n"
-        "Я проверю Fraud Score сразу по нескольким лучшим бесплатным сервисам."
+        "Пришли прокси в <b>любом</b> формате:\n\n"
+        "• <code>socks5://user:pass@host:port</code>\n"
+        "• <code>user:pass@host:port</code>\n"
+        "• <code>host:port:user:pass</code>\n"
+        "• <code>host:port</code>\n"
+        "• <code>http://host:port</code>\n\n"
+        "Я автоматически определю тип и проверю Fraud Score."
     )
 
 
