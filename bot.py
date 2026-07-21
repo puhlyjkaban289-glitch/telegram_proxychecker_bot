@@ -21,35 +21,38 @@ dp = Dispatcher()
 
 def parse_proxy(proxy_str: str) -> dict | None:
     """
-    Поддерживает почти все существующие форматы прокси:
+    Поддерживает почти все существующие форматы прокси + частые опечатки:
 
     1. protocol://user:pass@host:port
-    2. protocol://host:port
-    3. user:pass@host:port
-    4. host:port:user:pass
-    5. host:port
-    6. protocol://user:pass@host:port (с socks5h, http, https и т.д.)
+    2. protocol:/user:pass@host:port   ← частая опечатка (один слэш)
+    3. protocol:user:pass@host:port
+    4. user:pass@host:port
+    5. host:port:user:pass
+    6. host:port
     """
     raw = proxy_str.strip()
     if not raw:
         return None
 
-    scheme = "socks5"  # дефолт для резидентских
+    scheme = "socks5"  # дефолт
     user = None
     password = None
     host = None
     port = None
 
-    # === Формат 1: protocol://... ===
-    if "://" in raw:
-        try:
-            scheme_part, rest = raw.split("://", 1)
-            scheme = scheme_part.lower().strip()
-            raw = rest
-        except Exception:
-            return None
+    # === Убираем протокол (поддерживаем // и / и даже без слэшей) ===
+    # Примеры: socks5://  |  socks5:/  |  socks5:
+    proto_match = re.match(r'^([a-zA-Z][a-zA-Z0-9+.-]*):/{0,2}(.+)$', raw)
+    if proto_match:
+        possible_scheme = proto_match.group(1).lower()
+        rest = proto_match.group(2)
 
-    # === Формат 2: user:pass@host:port ===
+        # Только если это действительно похоже на протокол
+        if possible_scheme in ("socks5", "socks5h", "socks4", "socks", "http", "https", "socks4a"):
+            scheme = possible_scheme
+            raw = rest
+
+    # === user:pass@host:port ===
     if "@" in raw:
         try:
             auth_part, hostport = raw.rsplit("@", 1)
@@ -71,7 +74,7 @@ def parse_proxy(proxy_str: str) -> dict | None:
         # host:port:user:pass
         host, port, user, password = parts
     elif len(parts) == 3:
-        # иногда бывает host:port:user (без пароля) — редко
+        # host:port:user
         host, port, user = parts
     else:
         return None
@@ -88,11 +91,10 @@ def parse_proxy(proxy_str: str) -> dict | None:
 
     # Нормализация схемы
     scheme = scheme.lower()
-    if scheme in ("socks", "socks5h"):
+    if scheme in ("socks", "socks5h", "socks4a"):
         scheme = "socks5"
-    if scheme not in ("socks5", "socks4", "http", "https"):
-        # если совсем неизвестная схема — оставляем как есть, httpx попробует
-        pass
+    if scheme == "socks4":
+        scheme = "socks4"
 
     return {
         "scheme": scheme,
