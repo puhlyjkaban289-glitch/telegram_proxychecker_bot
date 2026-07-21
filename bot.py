@@ -124,7 +124,7 @@ async def get_ip_through_proxy(proxy_url: str) -> tuple[str | None, str | None]:
     """
     try:
         async with httpx.AsyncClient(
-            proxies=proxy_url,
+            proxy=proxy_url,          # новый параметр (httpx >= 0.28)
             timeout=20.0,
             verify=False,
             follow_redirects=True
