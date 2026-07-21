@@ -118,18 +118,27 @@ def build_proxy_url(data: dict) -> str:
     return f"{scheme}://{host}:{port}"
 
 
-async def get_ip_through_proxy(proxy_url: str) -> str | None:
+async def get_ip_through_proxy(proxy_url: str) -> tuple[str | None, str | None]:
+    """
+    Возвращает (ip, error_message)
+    """
     try:
         async with httpx.AsyncClient(
             proxies=proxy_url,
-            timeout=18.0,
+            timeout=20.0,
             verify=False,
             follow_redirects=True
         ) as client:
             r = await client.get("https://api.ipify.org?format=json")
-            return r.json()["ip"]
-    except Exception:
-        return None
+            return r.json()["ip"], None
+    except httpx.ProxyError as e:
+        return None, f"ProxyError: {str(e)}"
+    except httpx.ConnectError as e:
+        return None, f"ConnectError: {str(e)}"
+    except httpx.TimeoutException as e:
+        return None, f"Timeout: {str(e)}"
+    except Exception as e:
+        return None, f"{type(e).__name__}: {str(e)}"
 
 
 async def check_scamalytics(ip: str, client: httpx.AsyncClient) -> dict:
@@ -242,15 +251,16 @@ async def check_proxy(proxy_str: str) -> str:
     port = data["port"]
 
     # Получаем реальный IP через прокси
-    ip = await get_ip_through_proxy(proxy_url)
+    ip, error = await get_ip_through_proxy(proxy_url)
     if not ip:
         return (
             "❌ Прокси не работает\n\n"
-            "Возможные причины:\n"
+            f"<b>Реальная ошибка:</b>\n<code>{error}</code>\n\n"
+            "Частые причины:\n"
             "• Неверный логин/пароль\n"
+            "• Сессия прокси истекла\n"
             "• Прокси оффлайн\n"
-            "• Неправильный тип (socks5/http)\n"
-            "• Таймаут соединения"
+            "• Хост блокирует датацентры (Railway и т.п.)"
         )
 
     lines = [
