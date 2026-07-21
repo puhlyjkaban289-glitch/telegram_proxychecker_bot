@@ -1,59 +1,64 @@
 # Proxy Fraud Score Checker Bot
 
-Telegram-бот для проверки прокси на Fraud Score сразу по нескольким лучшим бесплатным сервисам 2026 года:
+Telegram-бот для точной проверки прокси на Fraud Score.
 
-- Scamalytics
-- IPLogs
-- Fraudcache
-- ip-api
+### Что умеет
+- Принимает почти любой формат прокси
+- Точные оценки через **IPQualityScore** и **proxycheck.io** (если указать ключи)
+- Бесплатные проверки (Scamalytics, IPLogs, Fraudcache и др.)
+- Показывает реальную ошибку, если прокси не работает
 
-## Поддерживаемые форматы прокси (любые)
+---
 
-Бот понимает почти все существующие форматы:
+## Деплой на Railway
 
-```
-socks5://user:pass@host:port
-socks5://host:port
-user:pass@host:port
-host:port:user:pass
-host:port
-http://user:pass@host:port
-http://host:port
-https://host:port
-```
+### 1. Залей файлы в GitHub репозиторий
 
-Если протокол не указан — по умолчанию используется `socks5`.
+### 2. Создай проект на Railway → Deploy from GitHub
 
-## Деплой на Railway (из GitHub)
+### 3. Добавь переменные окружения
 
-### 1. Создай репозиторий на GitHub
-Загрузи все файлы из этой папки в новый репозиторий.
-
-### 2. Создай проект на Railway
-1. Зайди на [railway.app](https://railway.app)
-2. New Project → Deploy from GitHub repo
-3. Выбери свой репозиторий
-
-### 3. Добавь переменную окружения
-В настройках сервиса → Variables:
-
+Обязательная:
 ```
 BOT_TOKEN = твой_токен_от_BotFather
 ```
 
-### 4. Деплой
-Railway сам подхватит `Procfile` и запустит бота командой `python bot.py`.
+Рекомендуемые (для точной оценки):
+```
+IPQS_API_KEY = твой_ключ_от_IPQualityScore
+PROXYCHECK_API_KEY = твой_ключ_от_proxycheck.io
+```
 
-## Локальный запуск (для теста)
+---
+
+## Как получить бесплатные API-ключи
+
+### IPQualityScore (рекомендуется)
+1. Зайди на https://www.ipqualityscore.com
+2. Зарегистрируйся (бесплатно)
+3. В личном кабинете скопируй API Key
+4. Лимит: **1000 проверок в месяц**
+
+### proxycheck.io
+1. Зайди на https://proxycheck.io
+2. Зарегистрируйся
+3. В Dashboard скопируй API Key
+4. Лимит: **1000 проверок в день**
+
+---
+
+## Локальный запуск
 
 ```bash
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-export BOT_TOKEN="твой_токен"
+export BOT_TOKEN="..."
+export IPQS_API_KEY="..."          # опционально
+export PROXYCHECK_API_KEY="..."    # опционально
 python bot.py
 ```
 
+---
+
 ## Важно
-- Токен бота **никогда** не коммить в GitHub.
-- Используй только переменные окружения Railway.
+- Без ключей бот работает, но оценки менее точные
+- С ключами IPQS + proxycheck.io — значительно ближе к реальному антифроду
